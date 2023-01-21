@@ -4,8 +4,8 @@ import numpy as np
 from skimage.segmentation import mark_boundaries
 import cv2
 
-import sys
-sys.path.append('./third_party/cython/build/lib.win-amd64-3.8')
+#import sys
+#sys.path.append('./third_party/cython/build/lib.win-amd64-3.8')
 from connectivity import enforce_connectivity
 
 def init_spixel_grid(args,  b_train=True):

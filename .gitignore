@@ -2,9 +2,10 @@
 data/VOCdevkit
 __pycache__
 .ipynb_checkpoints
-*.c
 *.obj
 *.exp
 *.lib
+third_party/cython/Connectivity.egg-info
+
 venv4seg
 
