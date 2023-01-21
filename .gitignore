@@ -2,6 +2,9 @@
 data/VOCdevkit
 __pycache__
 .ipynb_checkpoints
-
+*.c
+*.obj
+*.exp
+*.lib
 venv4seg
 

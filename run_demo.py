@@ -4,8 +4,8 @@ import torch.backends.cudnn as cudnn
 import models
 import torchvision.transforms as transforms
 import flow_transforms
-#from scipy.ndimage import imread   #mck: imread remove in 1.3 0rc1
-#from scipy.misc import imsave      #mck: comment out for now
+#from scipy.ndimage import imread   #mck: imread removed in 1.3 0rc1
+#from scipy.misc import imsave      #mck: imsave removed
 from skimage.io import imread       #mck: imread is in skimage.io now
 from skimage.io import imsave       #mck: imsave is in skimage.io now
 from loss import *
