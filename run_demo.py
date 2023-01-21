@@ -4,8 +4,10 @@ import torch.backends.cudnn as cudnn
 import models
 import torchvision.transforms as transforms
 import flow_transforms
-from scipy.ndimage import imread
-from scipy.misc import imsave
+#from scipy.ndimage import imread   #mck: imread remove in 1.3 0rc1
+#from scipy.misc import imsave      #mck: comment out for now
+from skimage.io import imread       #mck: imread is in skimage.io now
+from skimage.io import imsave       #mck: imsave is in skimage.io now
 from loss import *
 import time
 import random
@@ -117,6 +119,7 @@ def test(args, model, img_paths, save_path, idx):
     if not os.path.isdir(os.path.join(save_path, 'spixel_viz')):
         os.makedirs(os.path.join(save_path, 'spixel_viz'))
     spixl_save_name = os.path.join(save_path, 'spixel_viz', imgId + '_sPixel.png')
+    print(f"{type(spixel_viz)}, {spixel_viz.shape=}")
     imsave(spixl_save_name, spixel_viz.transpose(1, 2, 0))
 
     # save the unique maps as csv, uncomment it if needed

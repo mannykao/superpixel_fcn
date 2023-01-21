@@ -1,0 +1,7 @@
+*.tar
+data/VOCdevkit
+__pycache__
+.ipynb_checkpoints
+
+venv4seg
+
