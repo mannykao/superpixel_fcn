@@ -6,3 +6,4 @@ opencv-python
 Cython
 torch
 torchvision
+./third_party/cython
