@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn.init import kaiming_normal_, constant_
 from .model_util import *
-from train_util import *
+#from train_util import *       #mck: comment this out enable us to import it from outside superpixel_fcn
 
 # define the function includes in import *
 __all__ = [
