@@ -25,7 +25,7 @@ cd ../..
 The demo script ```run_demo.py``` provides the superpixels with a grid size of ```16 x 16``` using our pre-trained model (in ```/pretrained_ckpt```).
 Please feel free to provide your own images by copying them into ```/demo/inputs```, and run 
 ```
-python run_demo.py --data_dir=./demo/inputs --data_suffix=jpg --output=./demo 
+python run_demo.py --data_dir=./demo/inputs --data_suffix=jpg --output=./demo --device cuda:0
 ```
 The results will be generated in a new folder under ```/demo``` called ```spixel_viz```.
 

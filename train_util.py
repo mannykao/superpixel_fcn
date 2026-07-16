@@ -8,6 +8,8 @@ import cv2
 #sys.path.append('./third_party/cython/build/lib.win-amd64-3.8')
 from connectivity import enforce_connectivity
 
+device = None # set in main.py with train_util.device = device
+
 def init_spixel_grid(args,  b_train=True):
     if b_train:
         img_height, img_width = args.train_img_height, args.train_img_width
@@ -28,7 +30,7 @@ def init_spixel_grid(args,  b_train=True):
         np.repeat(spix_idx_tensor_, spixel_height,axis=1), spixel_width, axis=2)
 
     torch_spix_idx_tensor = torch.from_numpy(
-                np.tile(spix_idx_tensor, (args.batch_size, 1, 1, 1))).type(torch.float).cuda()
+                np.tile(spix_idx_tensor, (args.batch_size, 1, 1, 1))).type(torch.float).to(device)
 
 
     curr_img_height = int(np.floor(img_height))
@@ -42,7 +44,7 @@ def init_spixel_grid(args,  b_train=True):
     coord_tensor = np.concatenate([curr_pxl_coord[1:2, :, :], curr_pxl_coord[:1, :, :]])
 
     all_XY_feat = (torch.from_numpy(
-        np.tile(coord_tensor, (args.batch_size, 1, 1, 1)).astype(np.float32)).cuda())
+        np.tile(coord_tensor, (args.batch_size, 1, 1, 1)).astype(np.float32)).to(device))
 
     return  torch_spix_idx_tensor, all_XY_feat
 
@@ -84,7 +86,7 @@ def poolfeat(input, prob, sp_h=2, sp_w=2):
     h_shift_unit = 1
     w_shift_unit = 1
     p2d = (w_shift_unit, w_shift_unit, h_shift_unit, h_shift_unit)
-    feat_ = torch.cat([input, torch.ones([b, 1, h, w]).cuda()], dim=1)  # b* (n+1) *h*w
+    feat_ = torch.cat([input, torch.ones([b, 1, h, w]).to(device)], dim=1)  # b* (n+1) *h*w
     prob_feat = F.avg_pool2d(feat_ * prob.narrow(1, 0, 1), kernel_size=(sp_h, sp_w),stride=(sp_h, sp_w)) # b * (n+1) * h* w
     send_to_top_left =  F.pad(prob_feat, p2d, mode='constant', value=0)[:,  :, 2 * h_shift_unit:, 2 * w_shift_unit:]
     feat_sum = send_to_top_left[:, :-1, :, :].clone()
@@ -173,17 +175,17 @@ def assign2uint8(assign):
     #red up, green mid, blue down, for debug only
     b,c,h,w = assign.shape
 
-    red = torch.cat([torch.ones(size=assign.shape),  torch.zeros(size=[b,2,h,w])],dim=1).cuda()
+    red = torch.cat([torch.ones(size=assign.shape),  torch.zeros(size=[b,2,h,w])],dim=1).to(device)
 
     green = torch.cat([ torch.zeros(size=[b,1,h,w]),
                       torch.ones(size=assign.shape),
-                      torch.zeros(size=[b,1,h,w])],dim=1).cuda()
+                      torch.zeros(size=[b,1,h,w])],dim=1).to(device)
 
     blue  = torch.cat([torch.zeros(size=[b,2,h,w]),
-                       torch.ones(size=assign.shape)],dim=1).cuda()
+                       torch.ones(size=assign.shape)],dim=1).to(device)
 
-    black = torch.zeros(size=[b,3,h,w]).cuda()
-    white = torch.ones(size=[b,3,h,w]).cuda()
+    black = torch.zeros(size=[b,3,h,w]).to(device)
+    white = torch.ones(size=[b,3,h,w]).to(device)
     # up probablity
     mat_vis = torch.where(assign.type(torch.float) < 0. , white, black)
     mat_vis = torch.where(assign.type(torch.float) >= 0. , red* (assign.type(torch.float)+1)/3, mat_vis)
@@ -193,7 +195,7 @@ def assign2uint8(assign):
     return (mat_vis * 255.).type(torch.uint8)
 
 def val2uint8(mat,maxVal):
-    maxVal_mat = torch.ones(mat.shape).cuda() * maxVal
+    maxVal_mat = torch.ones(mat.shape).to(device) * maxVal
     mat_vis = torch.where(mat > maxVal_mat, maxVal_mat, mat)
     return (mat_vis * 255. / maxVal).type(torch.uint8)
 
@@ -210,7 +212,7 @@ def update_spixl_map (spixl_map_idx_in, assig_map_in):
         spixl_map_idx = F.interpolate(spixl_map_idx_in, size=(h,w), mode='nearest')
 
     assig_max,_ = torch.max(assig_map, dim=1, keepdim= True)
-    assignment_ = torch.where(assig_map == assig_max, torch.ones(assig_map.shape).cuda(),torch.zeros(assig_map.shape).cuda())
+    assignment_ = torch.where(assig_map == assig_max, torch.ones(assig_map.shape).to(device),torch.zeros(assig_map.shape).to(device))
     new_spixl_map_ = spixl_map_idx * assignment_ # winner take all
     new_spixl_map = torch.sum(new_spixl_map_,dim=1,keepdim=True).type(torch.int)
 
@@ -257,7 +259,7 @@ def spixlIdx(args, b_train = False):
     spix_idx_tensor = shift9pos(spix_values)
 
     torch_spix_idx_tensor = torch.from_numpy(
-        np.tile(spix_idx_tensor, (args.batch_size, 1, 1, 1))).type(torch.float).cuda()
+        np.tile(spix_idx_tensor, (args.batch_size, 1, 1, 1))).type(torch.float).to(device)
 
     return torch_spix_idx_tensor
 
@@ -309,7 +311,7 @@ def rgb2Lab_torch(img_in, mean_values = None):
     # inpu img intense should be [0,1] float b*3*h*w
     assert img_in.min() >= 0 and img_in.max()<=1
 
-    img= (img_in.clone() + mean_values.cuda()).clamp(0, 1)
+    img= (img_in.clone() + mean_values.to(device)).clamp(0, 1)
 
     mask = img > 0.04045
     img[mask] = torch.pow((img[mask] + 0.055) / 1.055, 2.4)
@@ -317,13 +319,13 @@ def rgb2Lab_torch(img_in, mean_values = None):
 
     xyz_from_rgb = torch.tensor([[0.412453, 0.357580, 0.180423],
                              [0.212671, 0.715160, 0.072169],
-                             [0.019334, 0.119193, 0.950227]]).cuda()
+                             [0.019334, 0.119193, 0.950227]]).to(device)
     rgb = img.permute(0,2,3,1)
 
     xyz_img = torch.matmul(rgb, xyz_from_rgb.transpose_(0,1))
 
 
-    xyz_ref_white = torch.tensor([0.95047, 1., 1.08883]).cuda()
+    xyz_ref_white = torch.tensor([0.95047, 1., 1.08883]).to(device)
 
     # scale by CIE XYZ tristimulus values of the reference white point
     lab = xyz_img / xyz_ref_white
@@ -362,7 +364,7 @@ def label2one_hot_torch(labels, C=14):
             N x C x H x W, where C is class number. One-hot encoded.
         '''
     b,_, h, w = labels.shape
-    one_hot = torch.zeros(b, C, h, w, dtype=torch.long).cuda()
+    one_hot = torch.zeros(b, C, h, w, dtype=torch.long).to(device)
     target = one_hot.scatter_(1, labels.type(torch.long).data, 1) #require long type
 
     return target.type(torch.float32)
