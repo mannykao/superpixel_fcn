@@ -15,6 +15,8 @@ from glob import glob
 
 import matplotlib.pyplot as plt
 
+import train_util
+
 # import sys
 # sys.path.append('../cython')
 # from connectivity import enforce_connectivity
@@ -34,8 +36,6 @@ results will be saved at the args.output
 '''
 
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__"))
 
@@ -43,6 +43,12 @@ model_names = sorted(name for name in models.__dict__
 parser = argparse.ArgumentParser(description='PyTorch SPixelNet inference on a folder of imgs',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+parser.add_argument(
+    "--device",
+    type=str,
+    default="cuda:0",
+    help="Device to run on: e.g. 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc."
+)
 parser.add_argument('--data_dir', metavar='DIR', default='./demo/inputs', help='path to images folder')
 parser.add_argument('--data_suffix',  default='jpg', help='suffix of the testing image')
 parser.add_argument('--pretrained', metavar='PTH', help='path to pre-trained model',
@@ -56,9 +62,13 @@ parser.add_argument('-b', '--batch-size', default=1, type=int, metavar='N', help
 
 args = parser.parse_args()
 
+device = torch.device(args.device)
+train_util.device = device
+
+
 random.seed(100)
 @torch.no_grad()
-def test(args, model, img_paths, save_path, idx):
+def test(args, model, img_paths, save_path, idx, device):
       # Data loading code
     input_transform = transforms.Compose([
         flow_transforms.ArrayToTensor(),
@@ -85,7 +95,7 @@ def test(args, model, img_paths, save_path, idx):
     spix_idx_tensor = np.repeat(
       np.repeat(spix_idx_tensor_, args.downsize, axis=1), args.downsize, axis=2)
 
-    spixeIds = torch.from_numpy(np.tile(spix_idx_tensor, (1, 1, 1, 1))).type(torch.float).cuda()
+    spixeIds = torch.from_numpy(np.tile(spix_idx_tensor, (1, 1, 1, 1))).type(torch.float).to(device)
 
     n_spixel =  int(n_spixl_h * n_spixl_w)
 
@@ -96,14 +106,14 @@ def test(args, model, img_paths, save_path, idx):
 
     # compute output
     tic = time.time()
-    output = model(img1.cuda().unsqueeze(0))
+    output = model(img1.to(device).unsqueeze(0))
     toc = time.time() - tic
 
     # assign the spixel map
     curr_spixl_map = update_spixl_map(spixeIds, output)
     ori_sz_spixel_map = F.interpolate(curr_spixl_map.type(torch.float), size=( H_,W_), mode='nearest').type(torch.int)
 
-    mean_values = torch.tensor([0.411, 0.432, 0.45], dtype=img1.cuda().unsqueeze(0).dtype).view(3, 1, 1)
+    mean_values = torch.tensor([0.411, 0.432, 0.45], dtype=img1.to(device).unsqueeze(0).dtype).view(3, 1, 1)
     spixel_viz, spixel_label_map = get_spixel_image((ori_img + mean_values).clamp(0, 1), ori_sz_spixel_map.squeeze(), n_spixels= n_spixel,  b_enforce_connect=True)
 
     # ************************ Save all result********************************************
@@ -120,7 +130,7 @@ def test(args, model, img_paths, save_path, idx):
         os.makedirs(os.path.join(save_path, 'spixel_viz'))
     spixl_save_name = os.path.join(save_path, 'spixel_viz', imgId + '_sPixel.png')
     print(f"{type(spixel_viz)}, {spixel_viz.shape=}")
-    imsave(spixl_save_name, spixel_viz.transpose(1, 2, 0))
+    imsave(spixl_save_name, (spixel_viz.transpose(1, 2, 0) * 255).astype(np.uint8)) # imsave couldn't handle fp32 image
 
     # save the unique maps as csv, uncomment it if needed
     # if not os.path.isdir(os.path.join(save_path, 'map_csv')):
@@ -136,7 +146,7 @@ def test(args, model, img_paths, save_path, idx):
     return toc
 
 def main():
-    global args, save_path
+    global args, save_path, device
     data_dir = args.data_dir
     print("=> fetching img pairs in '{}'".format(data_dir))
 
@@ -155,16 +165,16 @@ def main():
     print('{} samples found'.format(len(tst_lst)))
 
     # create model
-    network_data = torch.load(args.pretrained)
+    network_data = torch.load(args.pretrained, map_location='cpu')
     print("=> using pre-trained model '{}'".format(network_data['arch']))
-    model = models.__dict__[network_data['arch']]( data = network_data).cuda()
+    model = models.__dict__[network_data['arch']]( data = network_data).to(device)
     model.eval()
     args.arch = network_data['arch']
     cudnn.benchmark = True
 
     mean_time = 0
     for n in range(len(tst_lst)):
-      time = test(args, model, tst_lst, save_path, n)
+      time = test(args, model, tst_lst, save_path, n, device)
       mean_time += time
     print("avg_time per img: %.3f"%(mean_time/len(tst_lst)))
 
